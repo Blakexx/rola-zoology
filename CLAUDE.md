@@ -248,3 +248,11 @@ The paper-facing flat dataset is built separately in the rola_paper repo
   Cloud Build fails with `FileNotFoundError: .../fla_rola/__init__.py` in a setup.py, or packages
   import as namespace packages with missing module code. Fix (2026-06-09): anchored to `/_*.py` and
   `/_*.pkl`. When adding ignore patterns for "top-level temp files", ALWAYS anchor with a leading slash.
+
+- **Routed (fla_rola) kernels OOM'd shared memory on T4** (sm75 = 64KB vs GA102's 99KB; the
+  [BT, BG*BV] intermediates are 64KB each at BT=32, and autotune num_stages multiplies them).
+  Fix (2026-06-09): device-aware sizing in fla_rola/ops/simple_gla/rola.py via FLA's own
+  `check_shared_mem('ada')` (ada tier = 101376B: RTX 30/40 + A100/H100 pass; T4 fails) →
+  small-smem devices get chunk 16 + num_stages ≤ 2. NOTE: `check_shared_mem('ampere')` is the
+  A100 bar (166912B) and is FALSE on consumer Ampere — use 'ada' for the GA102-class tier.
+  Caught by cloud/verify_fla_rola.py BEFORE any sweep ran on the image — keep running it per build.
