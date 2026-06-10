@@ -11,8 +11,9 @@ from zoology.experiments.rla_sweep import wrap_hybrid, D_MODEL, VOCAB
 from zoology.experiments.cla_router_width_v2 import TRAIN_CONFIGS, TEST_CONFIGS
 
 SEED = 1337
-ARMS = [("N4c832_t1",  dict(num_partitions=4,  num_rows=832, topk=1)),
-        ("N4c832_t2",  dict(num_partitions=4,  num_rows=832, topk=2)),
+# Paper-faithful shapes: expand N, keep c near their base (~128). N*c*dh = 39936 @ dh=12.
+ARMS = [("N26c128_t1", dict(num_partitions=26, num_rows=128, topk=1)),
+        ("N26c128_t2", dict(num_partitions=26, num_rows=128, topk=2)),
         ("N16c208_t1", dict(num_partitions=16, num_rows=208, topk=1))]
 LRS = [1e-2, 3e-3]
 

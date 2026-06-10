@@ -61,10 +61,32 @@ class SSE(nn.Module):
         v = self.W_v(x).view(B, L, H, dh)
         e, m = self._gates(x)
         E = e * m                                                            # masked gate [B,L,H,N]
-        G = torch.einsum('bihc,bjhc->bhij', q, kk)                           # content gram
-        P = torch.einsum('bihn,bjhn->bhij', E, E)                            # partition gram (hard-masked)
-        causal = torch.tril(torch.ones(L, L, device=x.device, dtype=x.dtype))
-        o = torch.einsum('bhij,bjhd->bihd', G * P * causal, v)               # [B,L,H,dh]
+        # Per-partition chunked linear attention (exact). SSE weight (q_t.k_j)(E_t.E_j) =
+        # sum_i (E^i_t q_t).(E^i_j k_j) -> N standard causal passes at feature dim c, each
+        # checkpointed (recompute in backward) so activations stay O(one partition).
+        from torch.utils.checkpoint import checkpoint as _ckpt
+
+        def _part(qe, ke, vv):
+            C = 64
+            pad = (-qe.shape[1]) % C
+            if pad:
+                qe = F.pad(qe, (0, 0, 0, 0, 0, pad)); ke = F.pad(ke, (0, 0, 0, 0, 0, pad))
+                vv = F.pad(vv, (0, 0, 0, 0, 0, pad))
+            n = qe.shape[1] // C
+            qc = qe.view(B, n, C, H, c); kc = ke.view(B, n, C, H, c); vc = vv.view(B, n, C, H, dh)
+            Gc = torch.einsum('bnihf,bnjhf->bnhij', qc, kc)
+            causal = torch.tril(torch.ones(C, C, device=qe.device, dtype=qe.dtype))
+            o_intra = torch.einsum('bnhij,bnjhd->bnihd', Gc * causal, vc)
+            KV = torch.einsum('bnjhf,bnjhd->bnhfd', kc, vc)
+            S = torch.cumsum(KV, dim=1) - KV
+            o_inter = torch.einsum('bnihf,bnhfd->bnihd', qc, S)
+            return (o_intra + o_inter).reshape(B, n * C, H, dh)[:, :L]
+
+        o = None
+        for i in range(self.N):
+            Ei = E[..., i].unsqueeze(-1)                                     # [B,L,H,1]
+            oi = _ckpt(_part, Ei * q, Ei * kk, v, use_reentrant=False)
+            o = oi if o is None else o + oi
         # partition balance aux (paper footnote 6): f_i = hard selection freq, ē_i = mean gate
         f = m.float().mean(dim=(0, 1, 2))
         self.aux_loss = self.balance_alpha * (self.N / max(self.k, 1)) * (f * e.float().mean(dim=(0, 1, 2))).sum()
