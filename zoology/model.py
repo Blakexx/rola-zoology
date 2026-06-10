@@ -3,7 +3,19 @@ from functools import partial
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.ops import StochasticDepth
+# StochasticDepth shim — we always run with drop_path=0 so this is effectively Identity.
+# Avoids torchvision's CUDA-version preflight which is incompatible with torch 2.11+cu126.
+class StochasticDepth(nn.Module):
+    def __init__(self, p=0.0, mode="row"):
+        super().__init__()
+        self.p = p
+    def forward(self, x):
+        if self.p == 0.0 or not self.training:
+            return x
+        keep = 1.0 - self.p
+        shape = (x.shape[0],) + (1,) * (x.ndim - 1)
+        mask = torch.empty(shape, dtype=x.dtype, device=x.device).bernoulli_(keep)
+        return x * mask / keep
 
 from zoology.config import ModelConfig
 
@@ -142,8 +154,9 @@ def _init_weights(
                 nn.init.normal_(module.weight, std=initializer_range)
     else:
         if isinstance(module, nn.Linear):
-            nn.init.normal_(module.weight, std=initializer_range)
-            if module.bias is not None:
+            if not getattr(module.weight, "_no_reinit", False):
+                nn.init.normal_(module.weight, std=initializer_range)
+            if module.bias is not None and not getattr(module.bias, "_no_reinit", False):
                 nn.init.zeros_(module.bias)
         elif isinstance(module, nn.Embedding):
             if not getattr(module, "_no_reinit", False):

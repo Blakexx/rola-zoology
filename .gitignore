@@ -174,3 +174,45 @@ cython_debug/
 # ./tests/
 # tests
 # /tests
+
+# ===== Cloud / secrets (do NOT commit) =====
+# Service-account JSON keys + any local credentials material.
+*.json.key
+*-credentials.json
+*-key.json
+service-account*.json
+gcp-key*.json
+application_default_credentials.json
+.gcloud/
+.aws/
+.azure/
+
+# Project-specific env files holding identifiers / API keys.
+.env
+.env.*
+!.env.example
+
+# Local cloud config — concrete project IDs, bucket names, etc.
+cloud/cloud.config
+cloud/.env
+
+# Wandb API key (just in case)
+.wandb/
+wandb-debug*.log
+
+# Local results files (big, often re-derivable, often contain run logs)
+*.jsonl
+!cloud/example_*.jsonl
+
+# Local pickles of run configs (we dump them to /tmp normally; defensive)
+_*.pkl
+_*.py
+
+# Reports — keep markdown but ignore generated artefacts
+reports/*.png
+reports/*.pdf
+!reports/.gitkeep
+
+# Misc / local
+.claude/
+*.local

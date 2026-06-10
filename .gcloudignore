@@ -1,0 +1,66 @@
+# Exclude everything we don't need in the Docker build context.
+# Cloud Build uploads what's left → don't ship 2 GB of wandb logs / caches.
+
+# Caches
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Virtualenvs
+.venv/
+venv/
+env/
+
+# Local cloud config — never push to GCP build
+cloud/.env
+
+# Wandb / logs / outputs
+wandb/
+**/wandb/
+checkpoints/
+output/
+sweep_outputs/
+logs/
+*.log
+
+# Big result files (we re-fetch via gsutil)
+*.jsonl
+!cloud/example_*.jsonl
+
+# Reports artefacts
+reports/*.png
+reports/*.pdf
+
+# Run-specific tempfiles
+/_*.pkl
+/_*.py
+/tmp/
+
+# Git
+.git/
+.gitignore
+
+# IDE / editor
+.vscode/
+.idea/
+.claude/
+*.swp
+*.swo
+
+# Build artefacts
+build/
+dist/
+*.egg-info/
+*.so
+
+# Data / datasets we don't want shipped (zoology has bert/data/ etc.)
+bert/data/
+
+# Service-account JSON keys (paranoia — the gitignore should already block these)
+service-account*.json
+*-key.json
+*-credentials.json
+application_default_credentials.json
+gcs_results_archive/
+lr_cal_results/

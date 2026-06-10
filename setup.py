@@ -10,7 +10,6 @@ _REQUIRED = [
     "wandb",
     "flash-linear-attention",
     "rotary-embedding-torch",
-    "causal_conv1d",
     "einx",
     "transformers",
 ]

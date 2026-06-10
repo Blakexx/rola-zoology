@@ -168,10 +168,9 @@ class GatedDeltaNet(nn.Module):
                 activation='silu'
             )
         else:
-            raise UserWarning(
-                "ShortConvolution is crucial to the performance. "
-                "Do not turn it off, i.e., setting `use_short_conv=False` unless you know what you are doing."
-            )
+            # Patched: was `raise UserWarning(...)`. Deliberately disabled to
+            # test the kernel without its position-mixing inductive bias.
+            print("[INFO] GatedDeltaNet: use_short_conv=False (intentionally disabled)", flush=True)
         if use_gate:
             self.g_proj = nn.Linear(hidden_size, self.value_dim, bias=False)
             self.o_norm = FusedRMSNormSwishGate(self.head_v_dim, eps=norm_eps)
@@ -262,7 +261,6 @@ class GatedDeltaNet(nn.Module):
                 initial_state=recurrent_state,
                 output_final_state=use_cache,
                 cu_seqlens=cu_seqlens,
-                head_first=False,
                 use_qk_l2norm_in_kernel=True
             )
         elif mode == 'fused_recurrent':
@@ -275,7 +273,6 @@ class GatedDeltaNet(nn.Module):
                 initial_state=recurrent_state,
                 output_final_state=use_cache,
                 cu_seqlens=cu_seqlens,
-                head_first=False,
                 use_qk_l2norm_in_kernel=True
             )
         if past_key_values is not None:
