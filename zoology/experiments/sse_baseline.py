@@ -11,10 +11,11 @@ from zoology.experiments.rla_sweep import wrap_hybrid, D_MODEL, VOCAB
 from zoology.experiments.cla_router_width_v2 import TRAIN_CONFIGS, TEST_CONFIGS
 
 SEED = 1337
-# Paper-faithful shapes: expand N, keep c near their base (~128). N*c*dh = 39936 @ dh=12.
-ARMS = [("N26c128_t1", dict(num_partitions=26, num_rows=128, topk=1)),
-        ("N26c128_t2", dict(num_partitions=26, num_rows=128, topk=2)),
-        ("N16c208_t1", dict(num_partitions=16, num_rows=208, topk=1))]
+# Paper-faithful shapes (expand N, c near their ~128 base). State = (N+1)*c*dh with the
+# ungated shared partition; (N+1)*c*dh = 39936 @ dh=12 matches the RoLA nc=256 cells.
+ARMS = [("N25c128_t1", dict(num_partitions=25, num_rows=128, topk=1)),
+        ("N25c128_t2", dict(num_partitions=25, num_rows=128, topk=2)),
+        ("N15c208_t1", dict(num_partitions=15, num_rows=208, topk=1))]
 LRS = [1e-2, 3e-3]
 
 configs, configs_envs = [], []
@@ -23,7 +24,7 @@ for lr in LRS:
         data = DataConfig(train_configs=TRAIN_CONFIGS, test_configs=TEST_CONFIGS,
                           batch_size=(128, 8), cache_dir="/tmp/zoology_cache_rwext")
         kernel = dict(name="zoology.mixers.sse.SSE",
-                      kwargs=dict(n_heads=4, d_head=12, always_on=True, **kw))
+                      kwargs=dict(n_heads=4, d_head=12, shared_partition=True, lora_rank=64, **kw))
         configs.append(TrainConfig(
             data=data,
             model=ModelConfig(block_type="TransformerBlock", sequence_mixer=wrap_hybrid(kernel),

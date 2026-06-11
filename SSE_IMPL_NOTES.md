@@ -34,3 +34,17 @@ sparser=worse monotone. This re-impl supersedes that — clean-room, standalone.
 ## Files
 - zoology/zoology/mixers/sse.py        (module; pure torch)
 - zoology/zoology/experiments/sse_baseline.py  (MQAR config, mirrors rola_kappa_norm protocol)
+
+
+## Post-review revision (2026-06-10, independent adversarial transcription review)
+Three unfaithfulness findings, all fixed in sse.py rev 2:
+1. Gate is PER-TOKEN (E in R^{L x N}, App. B algorithms) — was per-head.
+2. Always-selected partition = separate (N+1)-th SHARED partition OUTSIDE the gate: ungated
+   full-strength writes/reads ("no masking is applied to the shared portion", §4.2), LoRA-decoupled
+   QK (App. C; V shared) — was partition 0 inside the softmax, gate-scaled.
+3. Balance loss delivered via get_auxiliary_loss() (zoology trainer hook) over SPARSE partitions
+   only — was a dead attribute, and mis-scoped to include the always-on slot.
+Remaining documented deviation: Lambda=I (paper LM uses diagonal gating; framework is
+Lambda-agnostic per §3; matches the decay-free RLA comparison).
+Re-verified: recurrence 2.3e-7 (shared+LoRA active, ragged L); N=1-no-shared vs canonical FLA
+oracle 1.5e-3; aux reaches optimizer; sparse update fraction = k/N.
