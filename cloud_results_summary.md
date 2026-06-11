@@ -1,18 +1,25 @@
 # Cloud sweep results — local cache
 
-_207 records, sorted within each state group by max_acc descending_
+_229 records, sorted within each state group by max_acc descending_
 
 ## State ≈ 0
 
 | cell | variant | params | seed | lr | acc | kv=64 | kv=128 | kv=256 | grok_ep |
 |------|---------|--------|------|----|-----|-------|--------|--------|---------|
 | lrstate-rla-nc256 | linear | 1.22M | 1337 | 3e-03 | 0.999 | 1.00 | 1.00 | 1.00 | 0 |
+| kappa-nc256-d12dv12_g_sym | linear | 1.22M | 1337 | 1e-02 | 0.998 | 1.00 | 1.00 | 1.00 | 30 |
+| kappa-nc256-d12dv12_k_sym | linear | 1.22M | 1337 | 1e-02 | 0.998 | 1.00 | 1.00 | 1.00 | 20 |
+| kappa-nc256-d12dv12_k_asym | linear | 1.35M | 1337 | 1e-02 | 0.998 | 1.00 | 1.00 | 1.00 | 20 |
+| kappa-nc256-d12dv12_ps_sym | linear | 1.22M | 1337 | 1e-02 | 0.998 | 1.00 | 1.00 | 1.00 | 20 |
 | glascalar-rola-gla-scalar-norm-sym-nc256 | linear | 1.22M | 1337 | 3e-03 | 0.998 | 1.00 | 1.00 | 1.00 | 5 |
 | glascalar-rola-gla-scalar-norm-sym-nc256 | linear | 1.22M | 1337 | 1e-02 | 0.998 | 1.00 | 1.00 | 1.00 | 5 |
 | lrstate-rla-nc256 | linear | 1.22M | 1337 | 1e-02 | 0.998 | 1.00 | 1.00 | 1.00 | 5 |
 | rolaT4-nc256-d12dv12_sym | linear | 1.22M | 1337 | 1e-02 | 0.998 | 1.00 | 1.00 | 1.00 | 5 |
 | rolaT4-nc256-d12dv12_sym | linear | 1.22M | 2024 | 1e-02 | 0.998 | 1.00 | 1.00 | 1.00 | 5 |
 | rolaT4-nc256-d12dv12_sym | linear | 1.22M | 7 | 1e-02 | 0.998 | 1.00 | 1.00 | 1.00 | 5 |
+| rolaT4glanorm-nc256-d12dv12_sym | linear | 1.22M | 1337 | 1e-02 | 0.998 | 1.00 | 1.00 | 1.00 | 30 |
+| rolaT4glanorm-nc256-d12dv12_sym | linear | 1.22M | 2024 | 1e-02 | 0.998 | 1.00 | 1.00 | 1.00 | 35 |
+| rolaT4glanorm-nc256-d12dv12_sym | linear | 1.22M | 7 | 1e-02 | 0.998 | 1.00 | 1.00 | 1.00 | 35 |
 | lrs2-rola-based-sym-nc256 | linear | 1.21M | 1337 | 3e-03 | 0.997 | 1.00 | 1.00 | 1.00 | 5 |
 | rolaT4-nc128-d12dv12_sym | linear | 1.16M | 1337 | 1e-02 | 0.996 | 1.00 | 1.00 | 1.00 | 10 |
 | rolaT4-nc128-d12dv12_sym | linear | 1.16M | 2024 | 1e-02 | 0.996 | 1.00 | 1.00 | 1.00 | 10 |
@@ -21,15 +28,25 @@ _207 records, sorted within each state group by max_acc descending_
 | rolaT4glanorm-nc128-d12dv12_sym | linear | 1.16M | 2024 | 1e-02 | 0.996 | 1.00 | 1.00 | 1.00 | 10 |
 | rolaT4glanorm-nc128-d12dv12_sym | linear | 1.16M | 7 | 1e-02 | 0.996 | 1.00 | 1.00 | 1.00 | 15 |
 | t4smoke-mha-nl2 | linear | 1.13M |  |  | 0.996 | 1.00 | 1.00 | 0.99 | 0 |
+| kappa-nc256-d12dv12_g_asym | linear | 1.35M | 1337 | 1e-02 | 0.995 | 1.00 | 1.00 | 1.00 | 20 |
 | glascalar-rola-gla-scalar-sym-nc256 | linear | 1.22M | 1337 | 1e-02 | 0.995 | 1.00 | 1.00 | 1.00 | 15 |
 | lrs2-rola-based-sym-nc256 | linear | 1.21M | 1337 | 1e-02 | 0.994 | 1.00 | 1.00 | 1.00 | 20 |
+| normABa100-nc64-ps_sym | linear | 1.12M | 1337 | 3e-03 | 0.992 | 1.00 | 1.00 | 1.00 | 25 |
+| normABa100-nc64-ps_sym | linear | 1.12M | 1337 | 1e-02 | 0.992 | 1.00 | 1.00 | 1.00 | 25 |
 | rolaT4-nc64-d12dv12_sym | linear | 1.12M | 2024 | 1e-02 | 0.992 | 1.00 | 1.00 | 1.00 | 30 |
 | lrs2-rola-rebased-sym-nc256 | linear | 1.22M | 1337 | 1e-02 | 0.991 | 1.00 | 1.00 | 1.00 | 35 |
+| normABa100-nc64-ps_asym | linear | 1.16M | 1337 | 1e-02 | 0.991 | 1.00 | 1.00 | 1.00 | 30 |
+| normABa100-nc64-ps_asym | linear | 1.16M | 1337 | 3e-03 | 0.991 | 1.00 | 1.00 | 1.00 | 30 |
 | rolaT4-nc64-d12dv12_sym | linear | 1.12M | 1337 | 1e-02 | 0.991 | 1.00 | 1.00 | 1.00 | 30 |
 | rolaT4-nc64-d12dv12_sym | linear | 1.12M | 7 | 1e-02 | 0.991 | 1.00 | 1.00 | 1.00 | 30 |
+| normABa100-nc64-g_sym | linear | 1.12M | 1337 | 1e-02 | 0.990 | 1.00 | 1.00 | 1.00 | 35 |
 | rolaT4glanorm-nc64-d12dv12_sym | linear | 1.12M | 1337 | 1e-02 | 0.990 | 1.00 | 1.00 | 1.00 | 39 |
 | rolaT4glanorm-nc64-d12dv12_sym | linear | 1.12M | 2024 | 1e-02 | 0.990 | 1.00 | 1.00 | 1.00 | 30 |
 | rolaT4glanorm-nc64-d12dv12_sym | linear | 1.12M | 7 | 1e-02 | 0.990 | 1.00 | 1.00 | 1.00 | 35 |
+| normABa100-nc64-g_sym | linear | 1.12M | 1337 | 3e-03 | 0.989 | 1.00 | 1.00 | 1.00 | — |
+| normABa100-nc64-ps_sym | linear | 1.12M | 1337 | 3e-02 | 0.988 | 1.00 | 1.00 | 0.99 | — |
+| normABa100-nc64-g_asym | linear | 1.16M | 1337 | 1e-02 | 0.986 | 1.00 | 1.00 | 0.99 | — |
+| normABa100-nc64-g_asym | linear | 1.16M | 1337 | 3e-03 | 0.985 | 1.00 | 1.00 | 0.99 | — |
 | rolaT4asym-nc64-d12dv12_asym | linear | 1.16M | 1337 | 1e-02 | 0.983 | 1.00 | 1.00 | 0.99 | — |
 | rolaT4asym-nc64-d12dv12_asym | linear | 1.16M | 7 | 1e-02 | 0.983 | 1.00 | 1.00 | 0.99 | — |
 | rolaT4asym-nc64-d12dv12_asym | linear | 1.16M | 2024 | 1e-02 | 0.983 | 1.00 | 1.00 | 0.99 | — |
@@ -49,6 +66,7 @@ _207 records, sorted within each state group by max_acc descending_
 | rolaT4asym-nc32-d12dv12_asym | linear | 1.12M | 1337 | 1e-02 | 0.962 | 1.00 | 1.00 | 0.97 | — |
 | glascalar-rola-gla-scalar-sym-nc256 | linear | 1.22M | 1337 | 3e-03 | 0.961 | 1.00 | 1.00 | 0.97 | — |
 | lrs2-rola-gla-sym-nc256 | linear | 1.23M | 1337 | 1e-02 | 0.959 | 1.00 | 0.99 | 0.96 | — |
+| normABa100-nc64-ps_asym | linear | 1.16M | 1337 | 3e-02 | 0.952 | 1.00 | 0.99 | 0.95 | — |
 | lrs2-rola-rebased-sym-nc256 | linear | 1.22M | 1337 | 3e-03 | 0.950 | 1.00 | 0.99 | 0.94 | — |
 | glascalar-rola-gla-norm-sym-nc16 | linear | 1.11M | 1337 | 1e-02 | 0.943 | 1.00 | 0.99 | 0.94 | — |
 | lrs2-rola-gla-sym-nc256 | linear | 1.23M | 1337 | 3e-03 | 0.941 | 1.00 | 0.99 | 0.92 | — |
@@ -107,9 +125,11 @@ _207 records, sorted within each state group by max_acc descending_
 | rolaT4-nc8-d12dv12_sym | linear | 1.10M | 1337 | 1e-02 | 0.870 | 0.99 | 0.94 | 0.68 | — |
 | lrs2-rola-hedgehog-sym-nc256 | linear | 1.22M | 1337 | 3e-04 | 0.867 | 0.96 | 0.88 | 0.66 | — |
 | lrk-rola-rebased-sym-nc16d5 | linear | 1.09M | 1337 | 1e-03 | 0.866 | 0.99 | 0.94 | 0.64 | — |
+| monoT4-wide-nc8-lr3e-03_s1337 | linear | 1.18M | 1337 |  | 0.864 | 0.99 | 0.93 | 0.65 | — |
 | lrconf-rola-hedgehog-sym-nc16 | linear | 1.10M | 1337 | 1e-03 | 0.862 | 0.98 | 0.88 | 0.63 | — |
 | lrm-rola-rla-sym-mono-d48 | linear | 1.17M | 1337 | 3e-02 | 0.862 | 0.99 | 0.94 | 0.63 | — |
 | lrprobe-rola-hedgehog-sym-nc16 | linear | 1.10M | 1337 | 1e-03 | 0.862 | 0.98 | 0.88 | 0.63 | — |
+| monoT4-square-nc8-lr3e-03_s1337 | linear | 1.14M | 1337 |  | 0.853 | 0.99 | 0.93 | 0.59 | — |
 | lrm2-rola-hedgehog-sym-mono-d48v48 | linear | 1.14M | 1337 | 3e-03 | 0.844 | 0.99 | 0.91 | 0.56 | — |
 | lrm2-rola-rebased-sym-mono-d9v51 | linear | 1.13M | 1337 | 1e-02 | 0.844 | 0.99 | 0.91 | 0.54 | — |
 | lrm2-rola-based-sym-mono-d8v51 | linear | 1.13M | 1337 | 3e-03 | 0.843 | 1.00 | 0.92 | 0.53 | — |
@@ -124,6 +144,7 @@ _207 records, sorted within each state group by max_acc descending_
 | lrm2-rola-based-sym-mono-d8v51 | linear | 1.13M | 1337 | 3e-02 | 0.808 | 0.99 | 0.83 | 0.38 | — |
 | lrm2-rola-based-sym-mono-d8v51 | linear | 1.13M | 1337 | 1e-02 | 0.805 | 0.98 | 0.81 | 0.39 | — |
 | monolr-gdn-d22 | linear | 1.13M | 1337 | 3e-02 | 0.802 | 0.98 | 0.82 | 0.37 | — |
+| normABa100-nc64-g_sym | linear | 1.12M | 1337 | 3e-02 | 0.794 | 0.96 | 0.77 | 0.37 | — |
 | lrm-rola-gla-sym-mono-d48 | linear | 1.19M | 1337 | 3e-03 | 0.792 | 0.96 | 0.77 | 0.36 | — |
 | monolr-gdn-d200 | linear | 1.13M | 1337 | 3e-02 | 0.791 | 0.97 | 0.79 | 0.34 | — |
 | lrprobe-rola-hedgehog-sym-nc16 | linear | 1.10M | 1337 | 1e-02 | 0.790 | 0.96 | 0.77 | 0.36 | — |
@@ -174,6 +195,7 @@ _207 records, sorted within each state group by max_acc descending_
 | lrk-rola-gdn-sym-nc16d12 | linear | 1.10M | 1337 | 3e-04 | 0.650 | 0.71 | 0.33 | 0.09 | — |
 | lrs2-rola-rebased-sym-nc3 | linear | 1.09M | 1337 | 1e-03 | 0.647 | 0.68 | 0.30 | 0.10 | — |
 | monolr-gla-d22 | linear | 1.13M | 1337 | 1e-02 | 0.646 | 0.71 | 0.27 | 0.07 | — |
+| normABa100-nc64-g_asym | linear | 1.16M | 1337 | 3e-02 | 0.634 | 0.65 | 0.28 | 0.08 | — |
 | lrm-rola-gla-sym-mono-d48 | linear | 1.19M | 1337 | 1e-03 | 0.628 | 0.65 | 0.30 | 0.08 | — |
 | lrm-rola-gla-sym-mono-d48 | linear | 1.19M | 1337 | 1e-02 | 0.628 | 0.65 | 0.27 | 0.07 | — |
 | lrm-rola-gla-sym-mono-d48 | linear | 1.19M | 1337 | 3e-02 | 0.611 | 0.60 | 0.22 | 0.06 | — |
