@@ -256,3 +256,13 @@ The paper-facing flat dataset is built separately in the rola_paper repo
   small-smem devices get chunk 16 + num_stages ≤ 2. NOTE: `check_shared_mem('ampere')` is the
   A100 bar (166912B) and is FALSE on consumer Ampere — use 'ada' for the GA102-class tier.
   Caught by cloud/verify_fla_rola.py BEFORE any sweep ran on the image — keep running it per build.
+- **sm75 (T4) routed-kernel envelope: d_v <= 15** (BV=16). At d_v=16 -> BV=32, the two [BT=16, BG*BV=512]
+  fp32 intermediates alone = 64KB = the whole sm75 smem budget (num_stages was never the binding factor).
+  MQAR shapes (d_qk=d_v=12) fit fine. LM shapes (d_v=16) need ampere-class GPUs. verify_fla_rola.py
+  tests the workload shapes (12,12) for routing on T4.
+- **Stopping a local sweep: kill the RUNNER pid (and its children), not just the launching shell.**
+  run_rla_sweep.py installs a SIGTERM handler (spot-preemption support) and survives its parent
+  bash dying — twice (2026-06-10) an orphaned runner kept spawning _rla_single_* trainers for hours,
+  contending GPU and appending junk rows to the live results jsonl. Stop sequence:
+  `pgrep -f "run_rla_sweep.*<results-file>"` -> kill -9 runner FIRST, then `pgrep -f _rla_single`
+  children. Never pattern-match in a command whose own cmdline contains the pattern (exit-144 self-kill).
