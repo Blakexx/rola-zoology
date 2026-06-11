@@ -264,12 +264,15 @@ def run_one(idx, run_id, cfg, env_overrides, results_file=None):
             for line in proc.stdout:
                 print(line, end="", flush=True)  # tee → parent stdout
                 buffer.append(line)
-                # Cheap safety net for the 7200s timeout: check elapsed every line
-                if time.time() - t0 > 7200:
+                # Cheap safety net for the 12000s timeout: check elapsed every line
+                if time.time() - t0 > 12000:
                     proc.kill()
-                    raise subprocess.TimeoutExpired(proc.args, 7200)
+                    raise subprocess.TimeoutExpired(proc.args, 12000)
         finally:
             proc.wait()
+        # NOTE: on TimeoutExpired the buffered stdout still holds every COMPLETED eval line
+        # (the 2026-06-10 SSE run lost a finished-to-epoch-30 result this way) — callers must
+        # parse `buffer` even when the run is killed; see the except handler below.
         full_stdout = "".join(buffer)
         elapsed = time.time() - t0
         ok = proc.returncode == 0
@@ -281,7 +284,11 @@ def run_one(idx, run_id, cfg, env_overrides, results_file=None):
             "stderr_tail": full_stdout[-2000:] if not ok else "",
         }
     except subprocess.TimeoutExpired:
-        return {"run_id": run_id, "idx": idx, "ok": False, "elapsed": 7200, "error": "timeout"}
+        # Parse what completed before the kill — the buffer holds every finished eval line
+        # (a timed-out run that reached epoch 30 still has citable best-checkpoint metrics).
+        parsed = parse_stdout("".join(buffer)) if buffer else {}
+        return {"run_id": run_id, "idx": idx, "ok": False, "elapsed": 12000, "error": "timeout",
+                "env": env_overrides, **parsed}
     finally:
         signal.signal(signal.SIGTERM, old_handler)
         try:
