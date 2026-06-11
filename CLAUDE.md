@@ -266,3 +266,9 @@ The paper-facing flat dataset is built separately in the rola_paper repo
   contending GPU and appending junk rows to the live results jsonl. Stop sequence:
   `pgrep -f "run_rla_sweep.*<results-file>"` -> kill -9 runner FIRST, then `pgrep -f _rla_single`
   children. Never pattern-match in a command whose own cmdline contains the pattern (exit-144 self-kill).
+- **NGC 25.03's Triton 3.2 MISCOMPILES the routed (fla_rola) kernels on sm80/A100** — deterministic
+  O(1)-wrong FORWARD outputs (intra-chunk math, every block), config-independent (stages/chunk size
+  irrelevant), while the SAME 3.2 passes on sm75/T4 and 3.6 passes locally on sm86. Canonical fla
+  kernels unaffected (regression 0e+00 everywhere). Fix (2026-06-10): pin `triton>=3.4,<3.5` in the
+  image — verified green on A100 (2e-3). Lesson: run verify_fla_rola.py on EVERY device class a
+  sweep will use; a kernel verified on one (arch x triton) tuple proves nothing about another.
