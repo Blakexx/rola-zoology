@@ -65,7 +65,10 @@ for nc in NCS:
                 run_id=f"comp-{tag}-nc{nc}_st{state}_lr{lr:.0e}_s{SEED}",
                 early_stopping_threshold=2.0, early_stopping_metric="valid/accuracy",
                 slice_keys=["num_kv_pairs"]))
-            configs_envs.append({"EVAL_EVERY_N": "10"})
+            env = {"EVAL_EVERY_N": "10"}
+            if nc in (16, 64, 256):
+                env["CLA_MEASURE_RANK"] = "1"   # paired-monolith rank for fig:rank, subset only
+            configs_envs.append(env)
 
 assert len(configs) == 48, len(configs)
 
