@@ -192,6 +192,40 @@ def _rola_perstate_den(qf, kf, wg, chunk=64):
     return d.view(B, H, L, nc).permute(0, 2, 1, 3)                # [B,L,H,nc]
 
 
+def _rola_gla_perstate_den(qf, kf, wg, ld, chunk=64):
+    """Per-state denominator UNDER per-state log-decay ld:
+    d_i^c = sum_{j<=i} (φq_i·φk_j) w_j^c e^{Λ_ic-Λ_jc}, Λ = inclusive cumsum(ld).
+    [B,L,H,*] in → [B,L,H,nc] out. Chunked (decay absorbed chunk-locally, decayed
+    cross-chunk carry) — the torch fallback/oracle for the fork's GLA den kernel."""
+    B, L, H, dqk = qf.shape
+    nc = wg.shape[-1]
+    fold = lambda t: t.permute(0, 2, 1, 3).reshape(B * H, L, t.shape[-1])
+    q, k, w, g = fold(qf), fold(kf), fold(wg), fold(ld)
+    pad = (-L) % chunk
+    if pad:
+        q = F.pad(q, (0, 0, 0, pad)); k = F.pad(k, (0, 0, 0, pad))
+        w = F.pad(w, (0, 0, 0, pad)); g = F.pad(g, (0, 0, 0, pad))
+    Lp = L + pad; n = Lp // chunk
+    qc = q.view(B * H, n, chunk, dqk); kc = k.view(B * H, n, chunk, dqk)
+    wc = w.view(B * H, n, chunk, nc); gc = g.view(B * H, n, chunk, nc)
+    a = gc.cumsum(2)                                              # chunk-local Λ [b,n,t,c]
+    Lam = a[:, :, -1, :]                                          # chunk decay totals [b,n,c]
+    G = torch.einsum('bnid,bnjd->bnij', qc, kc)
+    causal = torch.tril(torch.ones(chunk, chunk, device=q.device, dtype=q.dtype))
+    intra = torch.exp(a) * torch.einsum('bnij,bnjc->bnic', G * causal, wc * torch.exp(-a))
+    w_end = wc * torch.exp(Lam.unsqueeze(2) - a)                  # writes decayed to chunk end
+    KZ = torch.einsum('bnjc,bnjd->bncd', w_end, kc)               # per-chunk carry increments
+    acc = torch.zeros(B * H, nc, dqk, device=q.device, dtype=q.dtype)
+    Zs = []
+    for i in range(n):                                            # decayed exclusive prefix
+        Zs.append(acc)
+        acc = torch.exp(Lam[:, i]).unsqueeze(-1) * acc + KZ[:, i]
+    Z = torch.stack(Zs, 1)                                        # [b,n,c,d] state at chunk start
+    inter = torch.exp(a) * torch.einsum('bnid,bncd->bnic', qc, Z)
+    d = (intra + inter).reshape(B * H, Lp, nc)[:, :L]
+    return d.view(B, H, L, nc).permute(0, 2, 1, 3)                # [B,L,H,nc]
+
+
 
 # ----------------------------------------------------------------------------
 # Optimized SCALAR-gated RoLA-GLA. With a scalar per-state forget gate the
@@ -750,11 +784,23 @@ class ScalarGLAKernel(RoutedKernel):
     normalized=False (default, GLA convention): raw gated sum. normalized=True: global
     V+1 partition fn (adds +feat_dim to state). First-use correctness gate."""
 
-    def __init__(self, d_model, n_heads, num_chunks, d_qk, d_v, normalized=False):
+    def __init__(self, d_model, n_heads, num_chunks, d_qk, d_v, normalized=False, state_norm=None):
         super().__init__(d_model, n_heads, num_chunks, d_qk, d_v)
-        self.normalized = normalized
-        self.uses_v_plus_one = normalized
+        # state_norm supersedes the legacy bool: 'raw' (GLA convention), 'global' (V+1 partition
+        # fn), 'per_state', 'kappa'. kappa/per_state rescale the read gates by the per-state mass
+        # UNDER DECAY (fork's GLA den kernel, verified incl. dld) then run the global combine —
+        # same construction as AdditiveKernel's kappa, with d now the decayed mass.
+        if state_norm is None:
+            state_norm = 'global' if normalized else 'raw'
+        assert state_norm in ('raw', 'global', 'per_state', 'kappa'), state_norm
+        self.state_norm = state_norm
+        self.normalized = state_norm != 'raw'
+        self.uses_v_plus_one = self.normalized
         self.w_g = nn.Linear(d_model, n_heads, bias=False)    # per-head scalar forget gate
+        if state_norm == 'kappa':
+            self.w_kappa = nn.Linear(d_model, n_heads)
+            nn.init.zeros_(self.w_kappa.weight)
+            nn.init.constant_(self.w_kappa.bias, -4.0)   # start ≈ global (κ≈0.018), learn upward
         self._checked = False
 
     def _log_decay(self, x, write_gates):
@@ -767,6 +813,25 @@ class ScalarGLAKernel(RoutedKernel):
         B, L = x.shape[0], x.shape[1]
         qg = F.elu(q) + 1.0; kg = F.elu(k) + 1.0
         ld = self._log_decay(x, write_gates)
+        if self.state_norm in ('kappa', 'per_state'):
+            # rescale read gates by the DECAYED per-state mass, then run the standard global
+            # combine on the modified gates (kernel unchanged). per_state ≡ kappa=1 exactly.
+            if _fla_routed is not None and qg.is_cuda and qg.shape[-1] <= 64:
+                from fla_rola.ops.simple_gla.rola import rola_perstate_den_gla_triton
+                H = self.n_heads
+                foldd = lambda t: t.permute(0, 2, 1, 3).reshape(B * H, L, t.shape[-1])
+                with torch.autocast(device_type='cuda', enabled=False):
+                    dt = _triton_compute_dtype(qg.dtype)
+                    d = rola_perstate_den_gla_triton(foldd(qg).to(dt), foldd(kg).to(dt),
+                                                     foldd(write_gates).to(dt), foldd(ld).to(dt))
+                d = d.view(B, H, L, -1).permute(0, 2, 1, 3)
+            else:
+                d = _rola_gla_perstate_den(qg, kg, write_gates, ld)
+            if self.state_norm == 'kappa':
+                kap = torch.sigmoid(self.w_kappa(x)).view(B, L, self.n_heads, 1)
+                read_gates = read_gates * (d + 1e-5).pow(-kap)
+            else:
+                read_gates = read_gates / (d + 1e-5)
         if _USE_TRITON and _fla_routed is not None and qg.is_cuda and qg.shape[-1] <= 64:
             dv = self.d_v
             # Cast all inputs to one dtype (see AdditiveKernel — softmax routers are fp32 under
@@ -801,6 +866,28 @@ class ScalarGLAKernel(RoutedKernel):
                 cd = _rola_gla_chunked(f(qg), f(kg), f(v), f(write_gates), f(read_gates), ld_deep, normalized=self.normalized)
                 rel_d = (cd - rd).abs().max().item() / (rd.abs().max().item() + 1e-6)
                 assert rel_d < 1e-2, f"fused GLA deep-decay mismatch: rel={rel_d:.2e}"
+                if self.state_norm in ('kappa', 'per_state'):
+                    # DEN gate on SYNTHETIC well-massed inputs (live peaked routing is
+                    # ε-sensitive): dense oracle vs chunked torch vs (CUDA) Triton den.
+                    H, nc = self.n_heads, self.num_chunks
+                    qs = torch.rand(2, 128, H, self.d_qk, device=qg.device) + 0.1
+                    ws = torch.softmax(torch.randn(2, 128, H, nc, device=qg.device), -1)
+                    lds = -torch.rand(2, 128, H, nc, device=qg.device) * 0.5
+                    Lam = lds.cumsum(1)
+                    dec = torch.exp(Lam[:, :, None] - Lam[:, None, :, :, :])      # [B,i,j,H,nc]
+                    Gd = torch.einsum('bihd,bjhd->bijh', qs, qs)
+                    m = torch.tril(torch.ones(128, 128, device=qg.device, dtype=torch.bool))
+                    d_dense = (Gd[..., None] * dec * ws[:, None] * m[None, :, :, None, None]).sum(2)
+                    d_chk = _rola_gla_perstate_den(qs, qs, ws, lds)
+                    r1 = (d_chk - d_dense).abs().max().item() / (d_dense.abs().max().item() + 1e-6)
+                    assert r1 < 1e-2, f"GLA den chunked vs dense oracle mismatch: rel={r1:.2e}"
+                    if _fla_routed is not None and qg.is_cuda and self.d_qk <= 64:
+                        from fla_rola.ops.simple_gla.rola import rola_perstate_den_gla_triton
+                        foldd = lambda t: t.permute(0, 2, 1, 3).reshape(2 * H, 128, t.shape[-1])
+                        d_tri = rola_perstate_den_gla_triton(foldd(qs), foldd(qs), foldd(ws), foldd(lds))
+                        d_tri = d_tri.view(2, H, 128, -1).permute(0, 2, 1, 3)
+                        r2 = (d_tri - d_dense).abs().max().item() / (d_dense.abs().max().item() + 1e-6)
+                        assert r2 < 1e-2, f"GLA den Triton vs dense oracle mismatch: rel={r2:.2e}"
         return out
 
 
@@ -1066,6 +1153,15 @@ def rola_instance(name, d_qk, d_v, num_chunks, n_heads=4):
         # '-sym' => tied routers, '-asym' => untied.
         return dict(kernel='gla_scalar', tie_routers=name.endswith('-sym'),
                     kernel_kwargs={'normalized': '-norm-' in name}, **common)
+    if name.startswith('rola-gla-kappa'):
+        # KAPPA on the scalar-gated GLA cell: read gates rescaled by the DECAYED per-state
+        # mass (fork GLA den kernel), then the normalized global combine. '-sym' tied routers.
+        return dict(kernel='gla_scalar', tie_routers=name.endswith('-sym'),
+                    kernel_kwargs={'state_norm': 'kappa'}, **common)
+    if name.startswith('rola-gla-ps'):
+        # Per-state norm on the scalar-gated GLA cell (kappa≡1 endpoint, same den path).
+        return dict(kernel='gla_scalar', tie_routers=name.endswith('-sym'),
+                    kernel_kwargs={'state_norm': 'per_state'}, **common)
     if name in ('rola-gla-sym', 'rola-gla-norm-sym'):
         # Per-channel (vector) GLA via virtual heads (VirtualHeadGLAKernel). The decay
         # is entangled in the content contraction -> no shared-gram form (the paper's
