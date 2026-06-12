@@ -6,3 +6,5 @@ fla_rola_src/
 .mirrorignore
 .github/workflows/mirror.yml
 tools/mirror_scrub.sh
+cloud/.env
+.env
