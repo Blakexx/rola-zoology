@@ -162,9 +162,14 @@ def parse_stdout(stdout):
         # + eff_rank + sv_ratio_128/256, measured PER (epoch, seq-len) — each MQAR slice has
         # its own L (kv=1024 → longest). Group by (epoch, seqlen) so we don't average across
         # slices; carry every rank_* / sv_ratio_* / eff_rank key present (tolerant of missing).
-        RANK_KEYS = sorted({k for r in rank_recs for k in r
-                            if k.startswith('rank_') or k.startswith('mrank_') or k.startswith('sv_ratio_')
-                            or k in ('eff_rank', 'meff_rank', 'stable_rank', 'mstable_rank')})
+        ALL_KEYS = {k for r in rank_recs for k in r}
+        DIST_KEYS = sorted(k for k in ALL_KEYS if k.endswith('_dist'))
+        SPEC_KEYS = [k for k in ('spec_idx', 'spec_p10', 'spec_p50', 'spec_p90') if k in ALL_KEYS]
+        RANK_KEYS = sorted(k for k in ALL_KEYS
+                           if (k.startswith('rank_') or k.startswith('mrank_') or k.startswith('sv_ratio_')
+                               or k in ('eff_rank', 'meff_rank', 'pr_rank', 'mpr_rank',
+                                        'stable_rank', 'mstable_rank', 'n_slices'))
+                           and not k.endswith('_dist'))
         by = {}
         for r in rank_recs:
             by.setdefault((r.get('epoch', -1), r.get('seqlen', r.get('seq_len', -1))), []).append(r)
@@ -175,6 +180,17 @@ def parse_stdout(stdout):
             recs = by[(ep, sl)]
             row = {'epoch': ep, 'seqlen': sl, 'n': len(recs)}
             row.update({k: mean(recs, k) for k in RANK_KEYS})
+            # the paper's rank argument is distributional: per-slice (sequence × head)
+            # values concatenated across the recs (= kernel layers) at this (epoch, L),
+            # sorted — NOT averaged, a mean can report a rank no slice realizes.
+            for k in DIST_KEYS:
+                vals = [v for x in recs for v in x.get(k, [])]
+                if vals:
+                    row[k] = sorted(vals)
+            # spectrum quantiles kept per layer (quantiles don't aggregate by mean)
+            specs = [{sk: x[sk] for sk in SPEC_KEYS} for x in recs if 'spec_idx' in x]
+            if specs:
+                row['specs'] = specs
             rank_curve.append(row)
         # rank_final: the hardest slice (longest seq-len) at the last epoch — that's where
         # the task demands the most rank and where rank should exceed d_model under routing.

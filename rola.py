@@ -287,22 +287,37 @@ def _rola_gla_chunked(q, k, v, wg, rg, ld, eps=1e-5, chunk=64, normalized=False)
 
 
 def _rank_stats(sv, l, tols, prefix=''):
-    """Rank statistics from singular values sv:[N,l] (already sorted desc per row),
-    averaged over the N=b·H slices. Returns numerical rank at each tol, the Roy &
-    Vetterli (2007) effective rank exp(H(σ/Σσ)), and the stable rank ‖W‖_F²/σmax²."""
+    """Rank statistics from singular values sv:[N,l] (already sorted desc per row), over
+    the N = b·H (sequence × head) slices. The paper's barrier claim is DISTRIBUTIONAL —
+    "the level past which the head's realized rank distribution no longer covers the
+    task's demand" (§4) — and a mean over slices can report a rank no slice realizes
+    (verified: 4×rank-8 + 4×rank-380 slices → mean 194). So every estimator is emitted
+    both as the legacy mean and as the full sorted per-slice distribution `*_dist`.
+    Estimators: numerical rank #{σ>tol·σmax} at each tol; Roy & Vetterli (2007)
+    effective rank exp(H(σ/Σσ)); participation ratio (Σσ)²/Σσ² (the appendix
+    apd:spectra estimator, so main-figure and appendix numbers are comparable);
+    stable rank Σσ²/σmax²."""
     smax = sv[..., :1].clamp_min(1e-20)
-    out = {f'{prefix}rank_{t:.0e}': round((sv > t * smax).sum(-1).float().mean().item(), 2) for t in tols}
+    out = {}
+
+    def put(name, vals):                       # vals: [N] tensor of per-slice values
+        out[f'{prefix}{name}'] = round(vals.mean().item(), 2)
+        out[f'{prefix}{name}_dist'] = [round(v, 2) for v in vals.sort().values.tolist()]
+
+    for t in tols:
+        put(f'rank_{t:.0e}', (sv > t * smax).sum(-1).float())
     # Roy & Vetterli effective rank: exp(Shannon entropy, nats, of the L1-normalized
     # singular-value distribution). xlogy gives the 0·log0→0 convention exactly.
     p = sv / sv.sum(-1, keepdim=True).clamp_min(1e-20)
-    out[f'{prefix}eff_rank'] = round(torch.exp(-torch.special.xlogy(p, p).sum(-1)).mean().item(), 2)
+    put('eff_rank', torch.exp(-torch.special.xlogy(p, p).sum(-1)))
+    put('pr_rank', sv.sum(-1) ** 2 / (sv ** 2).sum(-1).clamp_min(1e-20))
     # stable (numerical) rank ‖W‖_F²/σmax² = Σσ² / σmax² — threshold-free, in [1, rank].
-    out[f'{prefix}stable_rank'] = round(((sv ** 2).sum(-1) / smax.squeeze(-1) ** 2).mean().item(), 2)
+    put('stable_rank', (sv ** 2).sum(-1) / smax.squeeze(-1) ** 2)
     return out
 
 
 @torch.no_grad()
-def _effective_attention_rank(qf, kf, rg, wg, max_b=2, max_l=4096, tols=(1e-1, 1e-2, 1e-3, 1e-4)):
+def _effective_attention_rank(qf, kf, rg, wg, max_b=4, max_l=4096, tols=(1e-1, 1e-2, 1e-3, 1e-4)):
     """Realized effective-attention rank on real inputs — the direct empirical test of the
     paper's rank argument. The per-head effective weight is W = G ∘ R (Hadamard), G=φ(Q)φ(K)ᵀ
     (rank ≤ d_qk), R=(read)(writeᵀ) (rank ≤ nc), so by the Schur/Oppenheim bound
@@ -313,20 +328,22 @@ def _effective_attention_rank(qf, kf, rg, wg, max_b=2, max_l=4096, tols=(1e-1, 1
     the wide monolith), NOT to n_heads·d_v. To demonstrate the claim, pair this with the same
     measurement on the matched-state monolith.
 
-    Reports THREE measures (numerical rank #{σ>tol·σmax} at several tols, Roy-Vetterli
-    effective rank, and stable rank ‖W‖_F²/σmax²) for TWO objects:
-      • UNMASKED W (prefix none): the score-structure rank the nc·d_qk bound is about.
-        Un-normalized — row-normalization is a positive-diagonal left-scaling, which IS
-        rank-preserving (entries strictly positive via φ=elu+1, so no zero rows).
-      • MASKED W∘tril (prefix 'm'): the rank of the attention the model ACTUALLY applies.
-        Causal masking is a Hadamard product with the FULL-RANK lower-triangular ones matrix,
-        so it can only RAISE the rank — the nc·d_qk bound does NOT hold for the masked object;
-        it is reported to show the realized (not just algebraic) rank.
-    qf,kf:[B,L,H,d_qk]  rg,wg:[B,L,H,nc].  Eval-only, subsampled, cheap."""
+    Measured object: the UNMASKED W — the score-structure rank the nc·d_qk bound is about,
+    and the paper's measured object (§7: the causal mask is a Hadamard with the FULL-RANK
+    lower-triangular ones matrix, so it can only inflate rank — verified: masked rank-1 ones
+    measures 1024/1024 — and the masked map carries no rank signal). Un-normalized: row
+    normalization is a positive-diagonal left-scaling, rank-preserving for strictly positive
+    entries. The masked object (prefix 'm') can still be emitted as an appendix honesty row
+    via CLA_RANK_MASKED=1; off by default, with the SVD budget spent on more sequences
+    (max_b=4) so the per-slice DISTRIBUTIONS in `*_dist` have support.
+    Also emits the spectrum itself — per-slice σ/σmax at log-spaced indices, quantiles
+    across slices — the "supply thins" plot of §4.
+    qf,kf:[B,L,H,d_qk]  rg,wg:[B,L,H,nc].  Eval-only, subsampled."""
     B, L, H, _ = qf.shape
     b, l = min(max_b, B), min(max_l, L)
     q, k, r, w = qf[:b, :l], kf[:b, :l], rg[:b, :l], wg[:b, :l]
-    causal = torch.tril(torch.ones(l, l, device=qf.device))
+    measure_masked = bool(os.environ.get('CLA_RANK_MASKED'))
+    causal = torch.tril(torch.ones(l, l, device=qf.device)) if measure_masked else None
     # SVD ONE l×l matrix at a time (loop over batch×head) rather than batching the full
     # [b,H,l,l] tensor + cuSOLVER workspace ×(b·H) at once — that peak OOMs/corrupts the
     # heavy cell (nc=256, l=4096: stacked 4096² SVDs) and produced an anomalous, non-monotone
@@ -337,15 +354,28 @@ def _effective_attention_rank(qf, kf, rg, wg, max_b=2, max_l=4096, tols=(1e-1, 1
             W = (q[bi, :, hi] @ k[bi, :, hi].T) * (r[bi, :, hi] @ w[bi, :, hi].T)   # [l,l]
             W = W.float()
             svs.append(torch.linalg.svdvals(W))                 # unmasked: score-structure rank
-            svs_m.append(torch.linalg.svdvals(W * causal))      # masked: realized-attention rank
-    sv = torch.stack(svs)                                 # [b·H, l]
+            if measure_masked:
+                svs_m.append(torch.linalg.svdvals(W * causal))  # masked: inflated, no rank signal
+    sv = torch.stack(svs)                                 # [b·H, l] = per-(sequence,head) slices
     out = _rank_stats(sv, l, tols)                        # unmasked (score structure)
-    out.update(_rank_stats(torch.stack(svs_m), l, tols, prefix='m'))   # masked (realized)
+    if measure_masked:
+        out.update(_rank_stats(torch.stack(svs_m), l, tols, prefix='m'))
     smax = sv[..., :1].clamp_min(1e-20)
-    # spectrum decay: σ at index 128 / 256 (relative to σmax) — does rank live past d_model?
+    # The spectrum itself, σ_i/σmax at log-spaced indices i, quantiles over slices: the
+    # supply distribution. A thinning supply shows as p90 collapsing toward p10 past the
+    # barrier; legacy scalar probes sv_ratio_128/256 kept for old-run comparability.
+    idx = sorted({0, 1} | {2 ** i for i in range(1, l.bit_length())} | {l - 1})
+    idx = [i for i in idx if i < l]
+    rel = (sv / smax)[:, idx]                              # [N, len(idx)]
+    qs = torch.quantile(rel, torch.tensor([0.1, 0.5, 0.9], device=rel.device), dim=0)
+    out['spec_idx'] = idx
+    out['spec_p10'] = [round(v, 5) for v in qs[0].tolist()]
+    out['spec_p50'] = [round(v, 5) for v in qs[1].tolist()]
+    out['spec_p90'] = [round(v, 5) for v in qs[2].tolist()]
     out['sv_ratio_128'] = round((sv[..., min(127, l - 1)] / smax.squeeze(-1)).mean().item(), 4)
     out['sv_ratio_256'] = round((sv[..., min(255, l - 1)] / smax.squeeze(-1)).mean().item(), 4)
     out['seq_len'] = l
+    out['n_slices'] = sv.shape[0]
     return out
 
 

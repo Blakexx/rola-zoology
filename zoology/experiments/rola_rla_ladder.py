@@ -1,7 +1,12 @@
-"""Stage 1 of the staged sweep plan: the RoLA-RLA ladder.
+"""Stage 1 of the staged sweep plan: the RoLA-RLA ladder — CANONICAL CELL (kappa-asym).
 
-The headline state-scaling curve for the paper: RoLA-RLA at the default norm config
-(global + sym, the paper default) across the full nc ladder at fixed d_qk=d_v=12.
+The headline state-scaling curve for the paper: RoLA-RLA with asymmetric routing
+(independent read/write routers — the canonical RoLA form, what reviewers care about and
+what LM runs use) + kappa normalization (which closes the global-norm asym tail gap:
+kv1024 g_asym 0.885 -> k_asym 0.946 = k_sym), across the full nc ladder at d_qk=d_v=12.
+The earlier g_sym ladder (same file, ladder-*_g_sym rows) is kept as the asym~sym
+equivalence section. CLA_MEASURE_RANK=1: every run also emits the DISTRIBUTIONAL
+realized-rank diagnostic (per-slice dists + spectrum quantiles, unmasked object).
 State per layer-head = nc * (d_qk*d_v + d_qk) ; nc 2 -> 256 spans ~26x state.
 
 Single seed / single LR (1e-2, calibrated for RLA) by design: Stage 1 gets the RoLA
@@ -26,7 +31,7 @@ for seed in SEEDS:
     for nc in NCS:
         data = DataConfig(train_configs=TRAIN_CONFIGS, test_configs=TEST_CONFIGS,
                           batch_size=(128, TEST_BS), cache_dir="/tmp/zoology_cache_rwext")
-        kw = rola_instance("rola-rla-sym", d_qk=12, d_v=12, num_chunks=nc, n_heads=4)
+        kw = rola_instance("rola-rla-kappa-asym", d_qk=12, d_v=12, num_chunks=nc, n_heads=4)
         kernel = dict(name="zoology.mixers.cla.ChunkedLinearAttention", kwargs=kw)
         configs.append(TrainConfig(
             data=data,
@@ -35,10 +40,10 @@ for seed in SEEDS:
                               d_model=D_MODEL, n_layers=2, max_position_embeddings=0, vocab_size=VOCAB),
             logger=LoggerConfig(project_name="rola-rla-ladder", entity=""),
             max_epochs=40, learning_rate=LR, weight_decay=0.0, seed=seed,
-            run_id=f"ladder-nc{nc}-d12dv12_g_sym_lr{LR:.0e}_s{seed}",
+            run_id=f"ladder-nc{nc}-d12dv12_k_asym_lr{LR:.0e}_s{seed}",
             early_stopping_threshold=2.0, early_stopping_metric="valid/accuracy",
             slice_keys=["num_kv_pairs"]))
-        configs_envs.append({"EVAL_EVERY_N": "10"})
+        configs_envs.append({"EVAL_EVERY_N": "10", "CLA_MEASURE_RANK": "1"})
 
 assert len(configs) == 8, len(configs)
 
