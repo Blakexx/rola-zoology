@@ -1,0 +1,30 @@
+name: mirror-to-public
+on:
+  push:
+    branches: [main]
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build filtered export
+        run: |
+          mkdir -p /tmp/export
+          rsync -a --delete --exclude-from=.mirrorignore ./ /tmp/export/ --exclude .git
+      - name: Tripwire scrub
+        run: bash tools/mirror_scrub.sh /tmp/export
+      - name: Push snapshot to public mirror
+        env:
+          MIRROR_KEY: ${{ secrets.MIRROR_KEY }}
+        run: |
+          mkdir -p ~/.ssh && echo "$MIRROR_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+          cd /tmp/export
+          git init -q -b main
+          git config user.name  "Blake Bottum"
+          git config user.email "blakebottum.research@gmail.com"
+          git remote add public "git@github.com:Blakexx/rola-zoology.git"
+          git fetch -q public main 2>/dev/null && git reset -q --soft FETCH_HEAD || true
+          git add -A
+          git diff --cached --quiet || git commit -q -m "update $(date -u +%F)"
+          git push -q public main

@@ -1,0 +1,8 @@
+CLAUDE.md
+.claude/
+reports/
+gcs_final_pull/
+fla_rola_src/
+.mirrorignore
+.github/workflows/mirror.yml
+tools/mirror_scrub.sh

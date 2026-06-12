@@ -1,3 +1,16 @@
+# rola-zoology
+
+Fork of [zoology](https://github.com/HazyResearch/zoology) carrying the experiment harness for
+the **RoLA (Routed Linear Attention)** paper: the MQAR matched-state sweep configs
+(`zoology/experiments/rola_*.py`, `sse_baseline.py`), the sweep runner (`run_rla_sweep.py`),
+a faithful standalone reimplementation of SSE (`zoology/mixers/sse.py`, verified against an
+exact recurrent reference), and the result caches the paper's tables are built from
+(`*_results.jsonl`). Part of the RoLA project (Blake Bottum, 2026): see
+[rola-paper](https://github.com/Blakexx/rola-paper) and
+[rola](https://github.com/Blakexx/rola).
+
+---
+
 <div align="center" >
     <img src="assets/banner.png" height=150 alt="Meerkat logo" style="margin-bottom:px"/> 
 
