@@ -20,3 +20,6 @@ lm_runs/
 reports/
 notebooks/
 attic/
+cloud/
+build/
+fla_rola_src/
