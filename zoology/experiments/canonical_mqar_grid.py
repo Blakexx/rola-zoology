@@ -14,9 +14,9 @@ Tiers (emit order = run order):
   T2  Based;  RLA square + heads
   T3  Hedgehog (3 shapes);  GLA (3 shapes)
   T4  GDN (3 shapes);  MHA oracle
-Rank diagnostic (CLA_MEASURE_RANK) rides only the instrumented RoLA code: the routed cells
-and a RoLA-RLA wide monolith (nc=1), at nc in {16,64,128,256} -> fig:rank. Canonical FLA/
-zoology baselines drive accuracy (tab:main) only; they have no rank probe.
+Rank is measured POST-HOC on saved best checkpoints (a separate full-dataset pass, all
+methods), not inline -- so this sweep is train + save-best-checkpoint only. Set
+SAVE_BEST_CKPT_DIR to capture checkpoints.
 """
 import sys
 sys.path.insert(0, '/mnt/c/Users/Blake/Documents/VSCode/CLA')
@@ -27,7 +27,6 @@ from zoology.experiments.canonical_baselines import baseline_cell, NCS, REF
 from rola import rola_instance
 
 SEED, TEST_BS = 1337, 8
-RANK_NCS = {16, 64, 128, 256}
 LRS = {  # per-method stage-1 brackets around the calibrated optimum
     "rla": [3e-3, 1e-2, 3e-2], "gla": [3e-3, 1e-2, 3e-2], "based": [3e-3, 1e-2, 3e-2],
     "hedgehog": [1e-3, 3e-3, 1e-2], "gdn": [3e-4, 1e-3, 3e-3],
@@ -36,7 +35,7 @@ LRS = {  # per-method stage-1 brackets around the calibrated optimum
 configs, configs_envs = [], []
 
 
-def add(kernel, run_id, lr, rank=False):
+def add(kernel, run_id, lr):
     configs.append(TrainConfig(
         data=DataConfig(train_configs=TRAIN_CONFIGS, test_configs=TEST_CONFIGS,
                         batch_size=(128, TEST_BS), cache_dir="/tmp/zoology_cache_rwext"),
@@ -47,10 +46,7 @@ def add(kernel, run_id, lr, rank=False):
         max_epochs=40, learning_rate=lr, weight_decay=0.0, seed=SEED, run_id=run_id,
         early_stopping_threshold=2.0, early_stopping_metric="valid/accuracy",
         slice_keys=["num_kv_pairs"]))
-    env = {"EVAL_EVERY_N": "10"}
-    if rank:
-        env["CLA_MEASURE_RANK"] = "1"
-    configs_envs.append(env)
+    configs_envs.append({"EVAL_EVERY_N": "10"})
 
 
 def routed(inst, tag):
@@ -58,17 +54,9 @@ def routed(inst, tag):
         kw = rola_instance(inst, d_qk=12, d_v=12, num_chunks=nc, n_heads=4)
         kernel = dict(name="zoology.mixers.cla.ChunkedLinearAttention", kwargs=kw)
         for lr in LRS["routed"]:
-            add(kernel, f"grid-routed-{tag}-nc{nc}_st{REF(nc)}_lr{lr:.0e}_s{SEED}", lr,
-                rank=(nc in RANK_NCS))
+            add(kernel, f"grid-routed-{tag}-nc{nc}_st{REF(nc)}_lr{lr:.0e}_s{SEED}", lr)
 
 
-def monolith_rank_RLA():
-    # RoLA-RLA wide monolith (nc=1, d_qk widened) via OUR code -> rank diagnostic for fig:rank.
-    for nc in sorted(RANK_NCS):
-        dqk = max(1, round(REF(nc) / (4 * 12)))            # H=4, d_v=12, wide keys
-        kw = rola_instance("rola-rla-sym", d_qk=dqk, d_v=12, num_chunks=1, n_heads=4)
-        kernel = dict(name="zoology.mixers.cla.ChunkedLinearAttention", kwargs=kw)
-        add(kernel, f"grid-rlamono-wide-nc{nc}_st{REF(nc)}_lr1e-02_s{SEED}", 1e-2, rank=True)
 
 
 def sse_ladder():
@@ -105,7 +93,6 @@ def baselines(methods, shapes):
 # ---- TIER 1: routed cells + same-kernel wide-RLA control + rank monolith ----
 routed("rola-rla-kappa-asym", "rla")
 routed("rola-gla-scalar-sym", "gla")
-monolith_rank_RLA()
 baselines(["rla"], ["wide"])
 # ---- TIER 2: Based + SSE (nearest prior method) + RLA square/heads ----
 baselines(["based"], ["wide"])

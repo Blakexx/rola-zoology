@@ -237,6 +237,12 @@ def run_one(idx, run_id, cfg, env_overrides, results_file=None):
         pickle.dump(cfg, f)
 
     env = os.environ.copy()
+    # Best-checkpoint save: if a dir is set, tell the cell where to write its best (by valid
+    # acc) model state_dict, named by run_id. Enables post-hoc rank eval / re-eval without
+    # re-training. Pulled off the box alongside results.
+    ckpt_dir = os.environ.get("SAVE_BEST_CKPT_DIR")
+    if ckpt_dir:
+        env["BEST_CKPT_PATH"] = f"{ckpt_dir}/{run_id}.pt"
     env["WANDB_MODE"] = "offline"
     # Disable wandb's stdout interception so our FLOPS_JSON / MODEL_STATS_JSON
     # / STATE_FLOATS_JSON lines reliably reach the subprocess's captured stdout.

@@ -356,6 +356,19 @@ class Trainer:
                         **{k: float(v) for k, v in metrics.items() if not isinstance(v, dict)}})
                 except Exception:
                     pass
+                # Best-checkpoint save (model only): enables post-hoc rank/re-eval without
+                # re-training. Keeps the single best-by-valid-accuracy state_dict.
+                ckpt_path = os.environ.get("BEST_CKPT_PATH")
+                if ckpt_path:
+                    acc = float(metrics.get("valid/accuracy", 0.0))
+                    if acc > getattr(self, "_best_ckpt_acc", -1.0):
+                        self._best_ckpt_acc = acc
+                        try:
+                            os.makedirs(os.path.dirname(ckpt_path), exist_ok=True)
+                            torch.save({"model": self.model.state_dict(), "epoch": epoch_idx,
+                                        "valid_accuracy": acc}, ckpt_path)
+                        except Exception as e:
+                            print(f"[ckpt] save failed: {e}", flush=True)
 
                 # early stopping
                 if (self.early_stopping_metric is not None) and metrics[

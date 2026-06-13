@@ -75,7 +75,8 @@ def baseline_cell(method, shape, nc):
             dk = max(1, round(S / (H * DV * fm)));        return _lin(fmap, dk * H, DV * H, H), S
         if shape == "square":                            # H*fm*d*d = S
             d = max(1, round(math.sqrt(S / (H * fm))));   return _lin(fmap, d * H, d * H, H), S
-        if shape == "heads":                             # h*fm*DV*DV = S
+        if shape == "heads":                             # h*fm*DV*DV = S; head-scaling OOMs (act ~ H*L*B)
+            if nc > 32: return None                       # H>~140 infeasible at batch 128 on 24GB
             h = max(1, round(S / (DV * DV * fm)));        return _lin(fmap, DV * h, DV * h, h), S
     if method == "gla":
         if shape == "wide":
@@ -83,6 +84,7 @@ def baseline_cell(method, shape, nc):
         if shape == "square":
             d = max(1, round(math.sqrt(S / H)));         return _gla(d * H, d * H, H), S
         if shape == "heads":
+            if nc > 32: return None                       # head-scaling OOMs beyond H~140 at batch 128
             h = max(1, round(S / (DV * DV)));            return _gla(DV * h, DV * h, h), S
     if method == "gdn":
         # FLA GatedDeltaNet, head_dim widens KEYS (recall axis), d_v held via expand_v.
@@ -94,6 +96,7 @@ def baseline_cell(method, shape, nc):
             d = max(1, round(math.sqrt(S / H)))
             return (None if d > 256 else (_gdn(d, H, d), S))
         if shape == "heads":                              # h*DV*DV = S, head_dim=DV
+            if nc > 32: return None                       # head-scaling OOMs beyond H~140 at batch 128
             h = max(1, round(S / (DV * DV)));            return _gdn(DV, h, DV), S
     if method == "based":
         # Based's only state axis is the Taylor feature_dim: taylor_exp feat = fd^2+fd+1,

@@ -351,7 +351,7 @@ def _rank_stats(sv, l, tols, prefix=''):
 
 
 @torch.no_grad()
-def _effective_attention_rank(qf, kf, rg, wg, max_b=4, max_l=4096, tols=(1e-1, 1e-2, 1e-3, 1e-4)):
+def _effective_attention_rank(qf, kf, rg, wg, max_b=64, max_l=8192, tols=(1e-1, 1e-2, 1e-3, 1e-4)):
     """Realized effective-attention rank on real inputs — the direct empirical test of the
     paper's rank argument. The per-head effective weight is W = G ∘ R (Hadamard), G=φ(Q)φ(K)ᵀ
     (rank ≤ d_qk), R=(read)(writeᵀ) (rank ≤ nc), so by the Schur/Oppenheim bound
@@ -888,6 +888,25 @@ class ScalarGLAKernel(RoutedKernel):
                         d_tri = d_tri.view(2, H, 128, -1).permute(0, 2, 1, 3)
                         r2 = (d_tri - d_dense).abs().max().item() / (d_dense.abs().max().item() + 1e-6)
                         assert r2 < 1e-2, f"GLA den Triton vs dense oracle mismatch: rel={r2:.2e}"
+        # Realized-rank diagnostic (fig:rank, gated kernel). The scalar decay exp(Λ_i−Λ_j) is an
+        # outer product e^{Λ_i}·e^{−Λ_j} — a two-sided positive diagonal rescaling, RANK-PRESERVING
+        # — so the gated effective-attention rank equals the un-decayed G∘R rank; the same probe
+        # (un-decayed gates) applies. nc·d_qk past d_model is the routed claim; the GLA monolith saturates.
+        if not self.training and os.environ.get('CLA_MEASURE_RANK') and L >= 256:
+            if not hasattr(self, '_rank_seen'):
+                self._rank_seen = set()
+            key = (getattr(self, '_current_epoch', 0), L)
+            if key not in self._rank_seen:
+                self._rank_seen.add(key)
+                try:
+                    import json as _json
+                    _r = _effective_attention_rank(qg, kg, read_gates, write_gates)
+                    _r.update(nc=self.num_chunks, d_qk=self.d_qk, d_model=self.d_model,
+                              nc_dqk=self.num_chunks * self.d_qk, epoch=getattr(self, '_current_epoch', 0),
+                              seqlen=L, cell='gla')
+                    print(f"RANK_JSON {_json.dumps(_r)}", flush=True)
+                except Exception:
+                    pass
         return out
 
 
