@@ -27,11 +27,14 @@ from zoology.experiments.canonical_baselines import baseline_cell, NCS, REF
 from rola import rola_instance
 
 SEED, TEST_BS = 1337, 8
-LRS = {  # per-method stage-1 brackets around the calibrated optimum
-    "rla": [3e-3, 1e-2, 3e-2], "gla": [3e-3, 1e-2, 3e-2], "based": [3e-3, 1e-2, 3e-2],
-    "hedgehog": [1e-3, 3e-3, 1e-2], "gdn": [3e-4, 1e-3, 3e-3],
-    "routed": [3e-3, 1e-2, 3e-2], "mha": [1e-3, 3e-3, 1e-2],
-}
+# CANONICAL 5-LR grid spanning 3e-4..3e-2 (≈ Zoology logspace). The earlier 3-LR brackets were
+# centered on PRIOR calibration probes (not citable in this paper's canonical data) and the
+# results showed half the cells -- incl flagship routed-RLA in 6/8 -- winning at the LOW edge
+# (3e-3), i.e. optimum NOT bracketed. This uniform grid makes every optimum interior and the
+# methodology self-justifying. Existing {3e-3,1e-2,3e-2} runs are a SUBSET (reused); only
+# {3e-4,1e-3} are added per cell. GDN/MHA already low; given the same uniform grid for cleanliness.
+_GRID = [3e-4, 1e-3, 3e-3, 1e-2, 3e-2]
+LRS = {k: list(_GRID) for k in ("rla", "gla", "based", "hedgehog", "gdn", "routed", "mha")}
 configs, configs_envs = [], []
 
 
@@ -90,20 +93,27 @@ def baselines(methods, shapes):
                     add(kernel, f"grid-{method}-{shape}-nc{nc}_st{st}_lr{lr:.0e}_s{SEED}", lr)
 
 
-# ---- TIER 1: routed cells + same-kernel wide-RLA control + rank monolith ----
-routed("rola-rla-kappa-asym", "rla")
-routed("rola-gla-scalar-sym", "gla")
-baselines(["rla"], ["wide"])
-# ---- TIER 2: Based + SSE (nearest prior method) + RLA square/heads ----
-baselines(["based"], ["wide"])
-sse_ladder()
-baselines(["rla"], ["square", "heads"])
-# ---- TIER 3: Hedgehog + GLA monoliths ----
-baselines(["hedgehog", "gla"], ["wide", "square", "heads"])
-# ---- TIER 4: GDN + MHA oracle ----
-baselines(["gdn"], ["wide", "square", "heads"])
-for lr in LRS["mha"]:
-    add(mha, f"grid-mha_lr{lr:.0e}_s{SEED}", lr)
+# Tier selection via GRID_TIERS: "12" = tiers 1+2 (high-competition LR sweep),
+# "34" = tiers 3+4 only (run separately on spot), "all"/unset = full 4-tier grid.
+# Each group is a contiguous index block so sharding within a group is clean.
+import os as _os
+_TIERS = _os.environ.get("GRID_TIERS", "all")
+if _TIERS in ("all", "12"):
+    # ---- TIER 1: routed cells + same-kernel wide-RLA control ----
+    routed("rola-rla-kappa-asym", "rla")
+    routed("rola-gla-scalar-sym", "gla")
+    baselines(["rla"], ["wide"])
+    # ---- TIER 2: Based + SSE (nearest prior method) + RLA square/heads ----
+    baselines(["based"], ["wide"])
+    sse_ladder()
+    baselines(["rla"], ["square", "heads"])
+if _TIERS in ("all", "34"):
+    # ---- TIER 3: Hedgehog + GLA monoliths ----
+    baselines(["hedgehog", "gla"], ["wide", "square", "heads"])
+    # ---- TIER 4: GDN + MHA oracle ----
+    baselines(["gdn"], ["wide", "square", "heads"])
+    for lr in LRS["mha"]:
+        add(mha, f"grid-mha_lr{lr:.0e}_s{SEED}", lr)
 
 
 def load_configs_and_envs():

@@ -1,30 +1,22 @@
-"""Chunked Linear Attention (CLA) mixer for Zoology.
+"""RoLA sequence mixer for Zoology — a first-class zoology mixer backed by the `rola` package.
 
-Wraps the ChunkedLinearAttention class from /mnt/c/Users/Blake/Documents/VSCode/CLA/cla_bench.py
-so we have a single source of truth. Zoology's TransformerBlock instantiates sequence_mixers
-with `d_model=...` and `layer_idx=...`; we accept both (layer_idx unused).
+Like the other zoology mixers (gla.py -> fla, based.py -> opt_einsum), this imports its backing
+library (the installed `rola` package) and adapts it to zoology's sequence-mixer API
+(instantiated with `d_model=...`, `layer_idx=...`; layer_idx unused). Single source of truth:
+the model lives in `rola`; this is the thin zoology adapter.
 """
 from __future__ import annotations
-import sys, os
 from typing import Optional
 
-# Add the CLA repo to sys.path so we can import ChunkedLinearAttention.
-_CLA_REPO = "/mnt/c/Users/Blake/Documents/VSCode/CLA"
-if _CLA_REPO not in sys.path:
-    sys.path.insert(0, _CLA_REPO)
-
-from rola import RoLA as _CLA  # noqa: E402  (RoLA orchestrator; legacy local alias _CLA)
-from rola import RecurrentGLA as _RecurrentGLA  # noqa: E402
-from rola import RecurrentLinearAttention as _RecurrentLA  # noqa: E402
-from rola import RecurrentGatedDelta as _RecurrentGDN  # noqa: E402
+from rola import RoLA as _RoLA                              # the RoLA orchestrator
+from rola import RecurrentGLA as _RecurrentGLA
+from rola import RecurrentLinearAttention as _RecurrentLA
+from rola import RecurrentGatedDelta as _RecurrentGDN
 
 
-class ChunkedLinearAttention(_CLA):
-    """Zoology-compatible wrapper around our ChunkedLinearAttention.
-
-    Accepts `layer_idx` (required by Zoology's TransformerBlock) and passes
-    everything else to the base class.
-    """
+class RoLAMixer(_RoLA):
+    """Zoology-compatible RoLA mixer: accepts `layer_idx` (required by Zoology's
+    TransformerBlock) and passes everything else through to the RoLA base class."""
     def __init__(
         self,
         d_model: int,
