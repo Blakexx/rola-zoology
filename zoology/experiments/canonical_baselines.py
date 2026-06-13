@@ -55,8 +55,11 @@ def _gdn(head_dim, num_heads, dv_head):
 
 
 def _based(feature_dim, num_heads):
+    # num_key_value_heads must equal num_heads (else head_dim = d_model//kv_heads mismatches
+    # the value reshape); num_heads must divide d_model=128.
     return dict(name="zoology.mixers.based.Based",
                 kwargs=dict(feature_dim=feature_dim, num_heads=num_heads,
+                            num_key_value_heads=num_heads,
                             feature_name="taylor_exp", use_short_conv=False))
 
 
@@ -99,7 +102,7 @@ def baseline_cell(method, shape, nc):
         # scaling; square/heads do not change Based's state, so they are not defined.
         taylor = lambda d: d * d + d + 1
         if shape == "wide":
-            HB = 8                                        # divides d_model=128 (11 breaks reshape); d_v=16
+            HB = 4                                        # divides d_model=128; d_v=32 (=d_model/H)
             dv_head = DMODEL // HB
             tgt_feat = S / (HB * dv_head)
             d = max(2, round(math.sqrt(tgt_feat)))
