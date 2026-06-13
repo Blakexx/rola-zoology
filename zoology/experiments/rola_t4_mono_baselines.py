@@ -48,7 +48,10 @@ for nc in NC_TARGETS:
                 run_id=f"monoT4-{tag}-nc{nc}-lr{lr:.0e}_s{SEED}",
                 early_stopping_threshold=2.0, early_stopping_metric="valid/accuracy",
                 slice_keys=["num_kv_pairs"]))
-            configs_envs.append({"EVAL_EVERY_N": "5"})
+            env = {"EVAL_EVERY_N": "5"}
+            if nc in (16, 64, 128):
+                env["CLA_MEASURE_RANK"] = "1"   # monolith side of fig:rank (wide-RLA is the same-kernel pair)
+            configs_envs.append(env)
 
 assert len(configs) == 45, len(configs)
 
