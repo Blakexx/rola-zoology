@@ -1,6 +1,10 @@
-"""Canonical MQAR matched-state grid (the fleet sweep): routed RoLA cells vs clean-room
-canonical baselines, one hardware family, tier-ordered (strongest competition first) so a
-budget cut leaves the crossover-critical cells done.
+"""MQAR matched-state grid (the fleet sweep): every method on one accuracy-vs-state plot,
+one hardware family, each scaling along its OWN natural axis -- the proposed cells
+(RoLA-RLA kappa-asym, RoLA-GLA; scale via nc), the canonical monolith baselines (RLA,
+Hedgehog, Based, GLA, GDN; scale via wide/square/heads or feature-dim), SSE (the nearest
+prior multi-state method; scales via partitions N and classifier dim c), and the MHA
+oracle. Tier-ordered (strongest competition first) so a budget cut leaves the
+crossover-critical cells done. Not a "monolith grid": RoLA and SSE are full participants.
 
 Stage 1 = per-(arch, shape, state) learning-rate sweep, 1 seed. Stage 2 (+2 seeds at the
 best LR on claim-bearing rungs) is a separate config launched after stage 1 picks winners.
@@ -67,6 +71,25 @@ def monolith_rank_RLA():
         add(kernel, f"grid-rlamono-wide-nc{nc}_st{REF(nc)}_lr1e-02_s{SEED}", 1e-2, rank=True)
 
 
+def sse_ladder():
+    # SSE, the nearest prior multi-state method, scaled the way it is strongest. Per-head
+    # state (N+1)*c*dh matches RoLA's nc*dqk*(dv+1)=156*nc at dh=12 -> (N+1)*c = 13*nc.
+    # Two regimes per rung so SSE picks its best: NATIVE (few big partitions, its strong
+    # regime) and PARALLEL (N~nc small partitions, mirroring RoLA's states). top-k=2 (the
+    # matched-state winner) + top-1 on native to show the sparsity effect; LR-swept.
+    for nc in (8, 16, 32, 64, 128, 256):
+        budget = 13 * nc                                   # (N+1)*c target, dh=12, H=4
+        native = (4, max(2, round(budget / 5)))            # few-big: N=4, c=budget/(N+1)
+        par = (max(1, nc), max(2, round(budget / (nc + 1))))  # many-small: N~nc, c~13
+        for (N, c), tag, topks in ((native, "native", (1, 2)), (par, "parallel", (2,))):
+            for tk in topks:
+                kernel = dict(name="zoology.mixers.sse.SSE",
+                              kwargs=dict(n_heads=4, num_partitions=N, num_rows=c, topk=tk))
+                st = 4 * (N + 1) * c * 12                   # H*(N+1)*c*dh realized total
+                for lr in LRS["routed"]:
+                    add(kernel, f"grid-sse-{tag}t{tk}-nc{nc}_N{N}c{c}_st{st}_lr{lr:.0e}_s{SEED}", lr)
+
+
 def baselines(methods, shapes):
     for method in methods:
         for shape in shapes:
@@ -84,8 +107,9 @@ routed("rola-rla-kappa-asym", "rla")
 routed("rola-gla-scalar-sym", "gla")
 monolith_rank_RLA()
 baselines(["rla"], ["wide"])
-# ---- TIER 2: Based + RLA square/heads ----
+# ---- TIER 2: Based + SSE (nearest prior method) + RLA square/heads ----
 baselines(["based"], ["wide"])
+sse_ladder()
 baselines(["rla"], ["square", "heads"])
 # ---- TIER 3: Hedgehog + GLA monoliths ----
 baselines(["hedgehog", "gla"], ["wide", "square", "heads"])

@@ -99,7 +99,7 @@ def baseline_cell(method, shape, nc):
         # scaling; square/heads do not change Based's state, so they are not defined.
         taylor = lambda d: d * d + d + 1
         if shape == "wide":
-            HB = 11                                       # d_v = d_model//11 ~= 11.6 (nearest to 12)
+            HB = 8                                        # divides d_model=128 (11 breaks reshape); d_v=16
             dv_head = DMODEL // HB
             tgt_feat = S / (HB * dv_head)
             d = max(2, round(math.sqrt(tgt_feat)))
