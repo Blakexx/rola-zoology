@@ -33,7 +33,11 @@ class Hybrid(nn.Module):
         Returns:
             y: (b, l, d) tensor
         """
-        return  self.mixer(u, *args, **kwargs)
+        out = self.mixer(u, *args, **kwargs)
+        # Canonical baselines from fla.layers (LinearAttention, GatedDeltaNet) follow the HF layer
+        # contract and return a tuple (hidden_states, attn, cache); zoology's block expects a bare
+        # tensor. Unwrap so HF-style sub-mixers compose with the rest of the block.
+        return out[0] if isinstance(out, tuple) else out
 
     def state_size(self, **kwargs):
         # Canonical baselines (fla.layers.LinearAttention/GatedDeltaNet) intentionally expose no
