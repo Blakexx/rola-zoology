@@ -36,5 +36,8 @@ class Hybrid(nn.Module):
         return  self.mixer(u, *args, **kwargs)
 
     def state_size(self, **kwargs):
-        return self.mixer.state_size(**kwargs)
+        # Canonical baselines (fla.layers.LinearAttention/GatedDeltaNet) intentionally expose no
+        # state_size — their realized state is read from the built projections by the companion
+        # verifier, not from this method. Guard so the harness's state-logging doesn't crash on them.
+        return self.mixer.state_size(**kwargs) if hasattr(self.mixer, "state_size") else 0
     
