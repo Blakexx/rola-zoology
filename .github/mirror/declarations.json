@@ -1,0 +1,7 @@
+{
+  "public": "Blakexx/rola-zoology",
+  "ships": [".github", ".gitignore", ".gitmodules", "3rdparty", "LICENSE.md", "README.md", "pyproject.toml", "setup.py",
+            "zoology"],
+  "private": [".github/workflows/mirror.yml"],
+  "allow": {}
+}

@@ -1,12 +1,21 @@
 # rola-zoology
 
-Fork of [zoology](https://github.com/HazyResearch/zoology) carrying the experiment harness for
-the **RoLA (Routed Linear Attention)** paper: the MQAR matched-state sweep configs
-(`zoology/experiments/rola_*.py`, `sse_baseline.py`), the sweep runner (`run_rla_sweep.py`),
-a faithful standalone reimplementation of SSE (`zoology/mixers/sse.py`, verified against an
-exact recurrent reference), and the result caches the paper's tables are built from
-(`*_results.jsonl`). Part of the RoLA project (Blake Bottum, 2026): see
-[rola-paper](https://github.com/Blakexx/rola-paper) and
+Fork of [zoology](https://github.com/HazyResearch/zoology) serving the **RoLA (Routed Linear Attention)**
+paper as the **MQAR baselines fork + the RoLA bridge mixer**. It supplies the synthetic-task harness
+(data, model, generic `train.py`) and the clean-room baseline mixers under `zoology/mixers/`
+— GLA, GatedDeltaNet, Based, DeltaNet, attention/MHA, plus a faithful standalone SSE reimplementation
+(`zoology/mixers/sse.py`, verified against an exact recurrent reference). RoLA itself is a first-class
+zoology mixer here: `zoology/mixers/rola.py` defines `RoLAMixer`, a thin adapter that holds
+`fla.layers.RoLA` (the RoLA layer on our fla fork's rola branch, itself a thin wrapper over the standalone `rola` package) and adapts it
+to zoology's mixer API: `d_model` becomes the layer's `hidden_size`, `n_heads`, `levels`, `d_v`, `decay`,
+`router_bias` and `gain_bias_init` pass through, and the layer's output tuple is unwrapped to the plain tensor
+`TransformerBlock` expects.
+
+This is a *baselines + adapter* fork only: the RoLA experiment orchestration (specs, runners, the result store)
+lives one repo up in [rola-bench](https://github.com/Blakexx/rola-bench), which builds every RoLA cell for this
+harness as `zoology.mixers.rola.RoLAMixer` (`rola_bench.models.rola.mixer_config`). Depends on
+`flash-linear-attention`: the fork's rola branch, which carries both the `fla` baseline layers and the RoLA mixer's layer. Part of the RoLA project
+(Blake Bottum, 2026): see [rola-paper](https://github.com/Blakexx/rola-paper) and
 [rola](https://github.com/Blakexx/rola).
 
 ---
@@ -239,5 +248,8 @@ If you use this codebase, or otherwise found our work valuable, please cite:
 }
 ```
 
+## Publishing
 
-
+This repository is developed in the private `rola-zoology-dev` and published to the public `rola-zoology`: a
+push to `main` runs `.github/workflows/mirror.yml`, which publishes the declared files as one snapshot commit
+([`.github/mirror/README.md`](.github/mirror/README.md)).
