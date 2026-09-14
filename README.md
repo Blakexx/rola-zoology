@@ -252,4 +252,4 @@ If you use this codebase, or otherwise found our work valuable, please cite:
 
 This repository is developed in the private `rola-zoology-dev` and published to the public `rola-zoology`: a
 push to `main` runs `.github/workflows/mirror.yml`, which publishes the declared files as one snapshot commit
-([`.github/mirror/README.md`](.github/mirror/README.md)).
+(`.github/mirror/declarations.json`; the export is [rola-devtools](https://github.com/Blakexx/rola-devtools)').
